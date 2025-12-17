@@ -70,7 +70,7 @@ fi
 
 # Export toolchain paths
 export PATH="${HOME}/toolchains/clang-r450784e/bin:${PATH}"
-export LD_LIBRARY_PATH="${HOME}/toolchains/clang-r450784e/lib64:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="${HOME}/toolchains/clang-r450784e/lib64:${LD_LIBRARY_PATH:-}"
 
 # Set cross-compile environment variables
 export BUILD_CROSS_COMPILE="${HOME}/toolchains/gcc/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-"
