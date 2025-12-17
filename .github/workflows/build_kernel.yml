@@ -57,9 +57,11 @@ jobs:
       - name: Build Kernel
         env:
           ENABLE_SUSFS: "1"
-          SUSFS_REPO: "https://gitlab.com/simonpunk/susfs4ksu.git"
-          SUSFS_BRANCH: "gki-android13-5.15"
+          SUSFS_REPO: "https://github.com/WildKernels/kernel_patches.git"  
+          SUSFS_BRANCH: "main"                                             
+          SUSFS_PATCH_SET: "next"                                          
           SUSFS_MODULE_REPO: "https://github.com/sidex15/susfs4ksu-module.git"
+          STRICT_SUSFS_PATCH: "0"
         run: |
           set -euo pipefail
           chmod +x ./build.sh
