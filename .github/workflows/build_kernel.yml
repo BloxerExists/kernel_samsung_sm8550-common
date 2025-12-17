@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
 
-jobs: 
+jobs:
   build_kernel:
     runs-on: ubuntu-latest
     strategy:
@@ -20,6 +20,7 @@ jobs:
           haskell: true
           large-packages: true
           swap-storage: false
+
       - name: Create Swap File
         run: |
           # Create a 12GB swap file
@@ -27,21 +28,49 @@ jobs:
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
-          # Verify the memory increase
           echo "Memory status after swap:"
           free -h
-      - name: Checkout repository
+
+      - name: Checkout repository (with submodules)
         uses: actions/checkout@v4
-      - name: Build Kernel
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build dependencies
         run: |
-          source ./build.sh
+          sudo apt update
+          sudo apt install -y --no-install-recommends \
+            bc bison build-essential curl device-tree-compiler flex git gnupg \
+            g++ make python3 python3-pip python3-markdown wget zip unzip \
+            libncurses-dev libssl-dev libelf-dev dwarves lz4 cpio rsync \
+            zstd p7zip-full patch binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu \
+            android-sdk-libsparse-utils erofs-utils libc6-dev libtinfo5 \
+            kmod repo xsltproc libxml2-utils --fix-missing
+          # ensure python points to python3
+          sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 1 || true
+
+      - name: Increase ulimits
+        run: |
+          ulimit -n 1048576 || true
+          
+      - name: Build Kernel
+        env:
+          ENABLE_SUSFS: "1"
+          SUSFS_REPO: "https://gitlab.com/simonpunk/susfs4ksu.git"
+          SUSFS_BRANCH: "gki-android13-5.15"
+          SUSFS_MODULE_REPO: "https://github.com/sidex15/susfs4ksu-module.git"
+        run: |
+          set -euo pipefail
+          chmod +x ./build.sh
+          ./build.sh
 
       - uses: actions/upload-artifact@v4
         with:
           path: |
             build/*
           compression-level: 0
-          
+
       - name: Publish
         id: release
         uses: softprops/action-gh-release@v2.4.2
@@ -49,11 +78,10 @@ jobs:
           files: build/*
           name: KERNEL_${{ github.run_number }}
           tag_name: ${{ github.run_number }}
-          
           body: |
             **DMXQ-KERNELSU-KERNEL**:
             **Thanks to @edgars-cirulis**
             WILL ONLY WORK ON ONEUI!!!! THIS IS NOT AOSP COMPATIBLE!!!! I AM NOT RESPONSIBLE FOR YOUR DEVICE NOT BOOTING/ BEING BRICKED, ANYTHING ELSE!
-            
+
             - **KernelSU-Next included [KernelSU Next apk](https://github.com/KernelSU-Next/KernelSU-Next/releases)**
             - **Run Number:** ${{ github.run_number }}
