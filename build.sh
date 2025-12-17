@@ -93,6 +93,57 @@ export BUILD_OPTIONS=(
 )
 
 # Integrate SUSFS: clone, apply patches, build/copy userspace tools
+# Helper: apply only CONFIG_* changes from a patch to arch/arm64/configs/gki_defconfig
+apply_gki_defconfig_patch() {
+    local patchfile="$1"
+    local defconf="arch/arm64/configs/gki_defconfig"
+    [ -f "${defconf}" ] || { echo "[WARN] ${defconf} not found; skipping defconfig patch."; return 1; }
+
+    echo "[INFO] Extracting CONFIG_* additions from ${patchfile}..."
+    # Extract added lines starting with '+' but skip patch metadata lines like '+++'
+    # We only keep lines that are CONFIG_* or "# CONFIG_* is not set"
+    mapfile -t cfg_lines < <(grep '^+' "${patchfile}" | grep -v '^+++' | sed 's/^+//' | grep -E '^CONFIG_|^# CONFIG_' || true)
+
+    if [ "${#cfg_lines[@]}" -eq 0 ]; then
+        echo "[INFO] No CONFIG_* lines found in ${patchfile}."
+        return 0
+    fi
+
+    # Apply each CONFIG line: replace existing line or append
+    for line in "${cfg_lines[@]}"; do
+        # normalize key name
+        if [[ "${line}" =~ ^#\ CONFIG_([A-Za-z0-9_]+)\ is\ not\ set ]]; then
+            key="${BASH_REMATCH[1]}"
+            new_line="${line}"
+        elif [[ "${line}" =~ ^CONFIG_([A-Za-z0-9_]+)= ]]; then
+            key="${BASH_REMATCH[1]}"
+            new_line="${line}"
+        else
+            # not a config line we care about
+            continue
+        fi
+
+        # Escape slashes for sed
+        esc_new_line=$(printf '%s\n' "${new_line}" | sed 's/[\/&]/\\&/g')
+
+        # If a CONFIG_*= exists, replace it; if "# CONFIG_* is not set", replace that; otherwise append
+        if grep -qE "^CONFIG_${key}=" "${defconf}"; then
+            sed -i "s/^CONFIG_${key}=.*/${esc_new_line}/" "${defconf}"
+            echo "[INFO] Replaced existing CONFIG_${key} in ${defconf}"
+        elif grep -qE "^# CONFIG_${key} is not set" "${defconf}"; then
+            sed -i "s|^# CONFIG_${key} is not set.*|${esc_new_line}|" "${defconf}"
+            echo "[INFO] Replaced '# CONFIG_${key} is not set' with ${esc_new_line} in ${defconf}"
+        else
+            # append at end
+            printf '%s\n' "${new_line}" >> "${defconf}"
+            echo "[INFO] Appended ${new_line} to ${defconf}"
+        fi
+    done
+
+    return 0
+}
+
+# Robust integrate_susfs() — tolerant application and special handling for gki_defconfig
 integrate_susfs() {
     if [ "${ENABLE_SUSFS}" != "1" ]; then
         echo "[INFO] SUSFS integration disabled (ENABLE_SUSFS != 1)."
@@ -101,112 +152,154 @@ integrate_susfs() {
 
     echo -e "\n[INFO] SUSFS integration requested. Cloning ${SUSFS_REPO} (branch ${SUSFS_BRANCH})...\n"
     rm -rf "${SUSFS_WORKDIR}"
-    git clone --depth 1 --branch "${SUSFS_BRANCH}" "${SUSFS_REPO}" "${SUSFS_WORKDIR}" || {
+    if ! git clone --depth 1 --branch "${SUSFS_BRANCH}" "${SUSFS_REPO}" "${SUSFS_WORKDIR}" 2>/dev/null; then
         echo "[WARN] Failed to clone SUSFS repo with branch ${SUSFS_BRANCH}, trying default branch..."
         rm -rf "${SUSFS_WORKDIR}"
-        git clone --depth 1 "${SUSFS_REPO}" "${SUSFS_WORKDIR}" || { echo "[ERROR] Cannot clone SUSFS repo."; return 1; }
-    }
-
-    # Search for patch files
-    echo "[INFO] Searching for .patch files in ${SUSFS_WORKDIR}..."
-    mapfile -t PATCH_FILES < <(find "${SUSFS_WORKDIR}" -type f -iname "*.patch" -o -iname "*.diff" -o -iname "*.patches" 2>/dev/null || true)
-
-    if [ "${#PATCH_FILES[@]}" -eq 0 ]; then
-        echo "[WARN] No .patch files found in SUSFS repository. The repo may not contain kernel patches for your kernel."
-    else
-        echo "[INFO] Found ${#PATCH_FILES[@]} patch file(s). Applying to kernel source..."
-        # Apply patches one-by-one
-        for p in "${PATCH_FILES[@]}"; do
-            echo "[INFO] Applying patch: ${p}"
-            # Try git apply first
-            if git apply --whitespace=fix "${p}"; then
-                echo "[OK] Applied ${p}"
-            else
-                # As fallback, try patch -p1
-                if patch -p1 --forward --silent < "${p}"; then
-                    echo "[OK] Applied ${p} with patch -p1"
-                else
-                    echo "[ERROR] Failed to apply ${p}. Aborting SUSFS integration."
-                    return 1
-                fi
-            fi
-        done
-        # Optionally commit the changes to kernel tree (non-essential but useful)
-        git add -A || true
-        git commit -m "Apply SUSFS patches" || true
-    fi
-
-    # Attempt to build the ksu_susfs userspace tool (arm/arm64)
-    # Many SUSFS repos provide a build script; try to use it
-    cd "${SUSFS_WORKDIR}" || return 0
-
-    # If repo provides a build script for ksu_susfs
-    if [ -x "./build_ksu_susfs_tool.sh" ]; then
-        echo "[INFO] Found build_ksu_susfs_tool.sh. Attempting to build ksu_susfs..."
-        # Make sure cross compiler is available via aarch64-linux-gnu-gcc
-        export AARCH64_CC="aarch64-linux-gnu-gcc"
-        chmod +x ./build_ksu_susfs_tool.sh
-        # The script may output arm/arm64 binaries under some tools/ directory
-        ./build_ksu_susfs_tool.sh || {
-            echo "[WARN] build_ksu_susfs_tool.sh failed, proceeding to search for prebuilt binaries..."
-        }
-    else
-        echo "[INFO] No build_ksu_susfs_tool.sh found; attempting to find prebuilt binaries."
-    fi
-
-    # Search for ksu_susfs binary (arm64) in common locations
-    cd "${KERNEL_ROOT}" || return 0
-    mapfile -t SUSFS_BIN_CANDIDATES < <(find "${SUSFS_WORKDIR}" -type f -iname "ksu_susfs*" -o -iname "sus_su*" 2>/dev/null || true)
-
-    if [ "${#SUSFS_BIN_CANDIDATES[@]}" -gt 0 ]; then
-        echo "[INFO] Found user-space binary candidate(s):"
-        for b in "${SUSFS_BIN_CANDIDATES[@]}"; do
-            echo "  - $b"
-        done
-    else
-        echo "[WARN] No ksu_susfs binary was found after build attempt. Trying to clone the sidex15 module repo for prebuilt files..."
-        # Try SIDEX15 module repository (it typically contains prebuilt binaries inside the module)
-        TMP_MODULE="${KERNEL_ROOT}/.susfs_module"
-        rm -rf "${TMP_MODULE}"
-        if git clone --depth 1 "${SUSFS_MODULE_REPO}" "${TMP_MODULE}"; then
-            echo "[INFO] Cloned module repo. Searching for prebuilt ksu_susfs in module..."
-            mapfile -t SUSFS_BIN_CANDIDATES < <(find "${TMP_MODULE}" -type f -iname "ksu_susfs*" -o -iname "sus_su*" 2>/dev/null || true)
-            if [ "${#SUSFS_BIN_CANDIDATES[@]}" -gt 0 ]; then
-                echo "[INFO] Found prebuilt module binary(s)."
-            else
-                echo "[WARN] sidex15 module clone did not reveal prebuilt binaries. SUSFS userspace will not be included."
-            fi
-        else
-            echo "[WARN] Could not clone sidex15 module repo; skipping prebuilt userland fallback."
+        if ! git clone --depth 1 "${SUSFS_REPO}" "${SUSFS_WORKDIR}"; then
+            echo "[ERROR] Cannot clone SUSFS repo."
+            return 1
         fi
     fi
 
-    # Prepare AnyKernel3/ksu directory so we can include the userspace tool in ZIP
-    cd "${KERNEL_ROOT}" || return 0
-    mkdir -p AnyKernel3/ksu/bin
+    # Determine patch directory
+    if [ "${SUSFS_PATCH_SET}" = "none" ]; then
+        echo "[INFO] SUSFS_PATCH_SET=none -> skipping kernel patch application."
+        PATCH_FILES=()
+    else
+        PATCH_DIR="${SUSFS_WORKDIR}/kernel_patches/${SUSFS_PATCH_SET}"
+        if [ -d "${PATCH_DIR}" ]; then
+            echo "[INFO] Using patch directory: ${PATCH_DIR}"
+            mapfile -t PATCH_FILES < <(find "${PATCH_DIR}" -type f \( -iname "*.patch" -o -iname "*.diff" \) -print || true)
+        else
+            echo "[WARN] Patch directory ${PATCH_DIR} not found. Searching entire repo for patch files as fallback..."
+            mapfile -t PATCH_FILES < <(find "${SUSFS_WORKDIR}" -type f \( -iname "*.patch" -o -iname "*.diff" \) -print || true)
+        fi
+    fi
 
-    # Copy any found ksu_susfs candidate that looks like an arm64 binary
-    for cand in "${SUSFS_BIN_CANDIDATES[@]:-}"; do
-        if [ -f "${cand}" ]; then
-            # if filename contains "aarch64" or "arm64" or is ELF with aarch64 arch, prefer it
-            file_out=$(file "${cand}" || true)
-            if echo "${file_out}" | grep -qi "aarch64"; then
-                echo "[INFO] Copying ${cand} -> AnyKernel3/ksu/bin/ksu_susfs"
-                cp "${cand}" AnyKernel3/ksu/bin/ksu_susfs
-                chmod +x AnyKernel3/ksu/bin/ksu_susfs || true
-                break
+    echo "[INFO] Found ${#PATCH_FILES[@]} patch file(s) to consider."
+
+    applied_count=0
+    skipped_count=0
+    failed_count=0
+
+    for p in "${PATCH_FILES[@]:-}"; do
+        [ -f "$p" ] || continue
+        echo "[INFO] Processing patch: $p"
+
+        # Pre-check
+        if git apply --check --whitespace=nowarn "$p" 2>/dev/null; then
+            echo "[INFO] Patch cleanly checks out. Applying via git apply..."
+            if git apply --whitespace=nowarn "$p"; then
+                echo "[OK] Applied $p"
+                applied_count=$((applied_count+1))
+                continue
+            else
+                echo "[WARN] git apply failed even though check passed. Will try fallbacks..."
             fi
-            # fallback: copy the first candidate
-            echo "[INFO] Copying fallback ${cand} -> AnyKernel3/ksu/bin/ksu_susfs"
-            cp "${cand}" AnyKernel3/ksu/bin/ksu_susfs
-            chmod +x AnyKernel3/ksu/bin/ksu_susfs || true
-            break
+        else
+            echo "[WARN] git apply --check failed for $p. Will try fallback methods..."
+        fi
+
+        # Fallback 1: try git apply with 3-way merge
+        if git apply --3way --whitespace=nowarn "$p" 2>/dev/null; then
+            echo "[OK] Applied via git apply --3way: $p"
+            applied_count=$((applied_count+1))
+            continue
+        else
+            echo "[WARN] git apply --3way failed for $p."
+        fi
+
+        # Fallback 2: try patch --merge
+        if patch -p1 --merge < "$p" 2>/dev/null; then
+            echo "[OK] Applied via patch --merge: $p"
+            applied_count=$((applied_count+1))
+            continue
+        else
+            echo "[WARN] patch --merge failed for $p."
+        fi
+
+        # Special-case: if patch touches gki_defconfig, apply config changes directly
+        if grep -q "arch/arm64/configs/gki_defconfig" "$p" 2>/dev/null; then
+            echo "[INFO] Patch touches gki_defconfig. Attempting to apply CONFIG_* lines directly."
+            if apply_gki_defconfig_patch "$p"; then
+                echo "[OK] Applied config changes from $p"
+                applied_count=$((applied_count+1))
+                continue
+            else
+                echo "[WARN] apply_gki_defconfig_patch failed for $p."
+            fi
+        fi
+
+        # Last resort: create rejects and try to continue
+        echo "[WARN] Attempting git apply --reject to produce .rej (non-fatal)."
+        if git apply --reject --whitespace=nowarn "$p" 2>/dev/null; then
+            echo "[INFO] git apply --reject produced rejects for $p (check .rej files). Treating as skipped/partial."
+            skipped_count=$((skipped_count+1))
+            continue
+        else
+            echo "[WARN] git apply --reject also failed for $p."
+        fi
+
+        # If we reach here, this patch failed all strategies
+        echo "[ERROR] Failed to apply $p by all methods."
+        failed_count=$((failed_count+1))
+        if [ "${STRICT_SUSFS_PATCH}" = "1" ]; then
+            echo "[ERROR] STRICT_SUSFS_PATCH=1 and a patch failed -> aborting SUSFS integration."
+            return 1
+        else
+            echo "[WARN] Skipping failed patch (STRICT_SUSFS_PATCH=0). Continuing with remaining patches."
+            continue
         fi
     done
 
-    echo "[INFO] SUSFS integration completed (patches applied and userspace tool added if available)."
+    echo "[INFO] Patch apply summary: applied=${applied_count}, skipped=${skipped_count}, failed=${failed_count}"
+
+    # Try to build/copy userspace binary (non-fatal)
+    cd "${SUSFS_WORKDIR}" || return 0
+    if [ -x "./build_ksu_susfs_tool.sh" ]; then
+        echo "[INFO] Found build_ksu_susfs_tool.sh. Attempting to build ksu_susfs..."
+        export AARCH64_CC="aarch64-linux-gnu-gcc"
+        chmod +x ./build_ksu_susfs_tool.sh || true
+        if ./build_ksu_susfs_tool.sh; then
+            echo "[INFO] SUSFS userland build script finished."
+        else
+            echo "[WARN] SUSFS userland build script failed (non-fatal). Searching repo for binaries."
+        fi
+    else
+        echo "[INFO] No SUSFS build script found; searching for prebuilt binaries."
+    fi
+
+    cd "${KERNEL_ROOT}" || return 0
+    mkdir -p AnyKernel3/ksu/bin
+    mapfile -t SUSFS_BIN_CANDIDATES < <(find "${SUSFS_WORKDIR}" -type f -iname "ksu_susfs*" -o -iname "sus_su*" 2>/dev/null || true)
+
+    if [ "${#SUSFS_BIN_CANDIDATES[@]}" -eq 0 ]; then
+        TMP_MODULE="${KERNEL_ROOT}/.susfs_module"
+        rm -rf "${TMP_MODULE}"
+        if git clone --depth 1 "${SUSFS_MODULE_REPO}" "${TMP_MODULE}" 2>/dev/null; then
+            mapfile -t SUSFS_BIN_CANDIDATES < <(find "${TMP_MODULE}" -type f -iname "ksu_susfs*" -o -iname "sus_su*" 2>/dev/null || true)
+        fi
+    fi
+
+    for cand in "${SUSFS_BIN_CANDIDATES[@]:-}"; do
+        [ -f "$cand" ] || continue
+        file_out=$(file "$cand" 2>/dev/null || true)
+        if echo "$file_out" | grep -qi "aarch64"; then
+            cp "$cand" AnyKernel3/ksu/bin/ksu_susfs
+            chmod +x AnyKernel3/ksu/bin/ksu_susfs || true
+            echo "[INFO] Copied aarch64 userspace binary into AnyKernel3/ksu/bin/"
+            break
+        fi
+        cp "$cand" AnyKernel3/ksu/bin/ksu_susfs
+        chmod +x AnyKernel3/ksu/bin/ksu_susfs || true
+        echo "[INFO] Copied fallback userspace binary into AnyKernel3/ksu/bin/"
+        break
+    done
+
+    echo "[INFO] SUSFS integration completed."
     return 0
 }
+
 
 build_kernel(){
     # Integrate SUSFS BEFORE configuring/building the kernel
