@@ -13,10 +13,13 @@ export KBUILD_BUILD_USER="@sauronbach"
 
 # Read SUSFS environment variables (defaults)
 ENABLE_SUSFS="${ENABLE_SUSFS:-0}"
-SUSFS_REPO="${SUSFS_REPO:-https://gitlab.com/simonpunk/susfs4ksu.git}"
-SUSFS_BRANCH="${SUSFS_BRANCH:-gki-android14-5.15}"
+SUSFS_REPO="${SUSFS_REPO:-https://github.com/WildKernels/kernel_patches.git}"
+SUSFS_BRANCH="${SUSFS_BRANCH:-main}"
 SUSFS_MODULE_REPO="${SUSFS_MODULE_REPO:-https://github.com/sidex15/susfs4ksu-module.git}"
+SUSFS_PATCH_SET="${SUSFS_PATCH_SET:-next}"
+STRICT_SUSFS_PATCH="${STRICT_SUSFS_PATCH:-0}"
 SUSFS_WORKDIR="${KERNEL_ROOT}/.susfs"
+
 
 # Function to detect OS and install dependencies (unchanged, simplified a bit)
 install_dependencies() {
