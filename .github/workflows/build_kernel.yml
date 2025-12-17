@@ -45,7 +45,7 @@ jobs:
             g++ make python3 python3-pip python3-markdown wget zip unzip \
             libncurses-dev libssl-dev libelf-dev dwarves lz4 cpio rsync \
             zstd p7zip-full patch binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu \
-            android-sdk-libsparse-utils erofs-utils libc6-dev libtinfo5 \
+            android-sdk-libsparse-utils erofs-utils libc6-dev libtinfo6 \
             kmod repo xsltproc libxml2-utils --fix-missing
           # ensure python points to python3
           sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 1 || true
