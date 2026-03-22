@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # (env-overridable)
-JOBS=${JOBS:-2}
+JOBS=${JOBS:-1}
 export LLVM_PARALLEL_LINK_JOBS=1
 KERNEL_DEFCONFIG=${KERNEL_DEFCONFIG:-gki_defconfig}
 CLANG_VERSION=${CLANG_VERSION:-clang-r584948}
@@ -60,7 +60,7 @@ setup_clang() {
     rm -f "$TARBALL"
   fi
 
-  export PATH="$CLANG_DIR/bin:$PATH"
+  export PATH="/usr/lib/ccache:$CLANG_DIR/bin:$PATH"
 
   ver="$("$CLANG_BINARY" --version | head -n1)"
   ver="$(echo "$ver" | sed -E 's/\(http[^)]*\)//g; s/[[:space:]]+/ /g; s/[[:space:]]+$//')"
