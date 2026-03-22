@@ -1,23 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# (env-overridable)
+# -------------------------
+# Configurable variables
+# -------------------------
 JOBS=${JOBS:-1}
-export LLVM_PARALLEL_LINK_JOBS=1
 KERNEL_DEFCONFIG=${KERNEL_DEFCONFIG:-gki_defconfig}
 CLANG_VERSION=${CLANG_VERSION:-clang-r584948}
 OUT_DIR=${OUT_DIR:-out}
 CLANG_DIR=${CLANG_DIR:-"$HOME/tools/google-clang"}
 CLANG_BINARY="$CLANG_DIR/bin/clang"
 
-# KernelSU Next
 KSU_DIR=${KSU_DIR:-KernelSU-Next}
 KSU_REPO=${KSU_REPO:-https://github.com/KernelSU-Next/KernelSU-Next.git}
-KSU_BRANCH=${KSU_BRANCH:-main}
+KSU_BRANCH=${KSU_BRANCH:-stable}
 
+# Optional: disable LTO to avoid CI OOM
+CI_NO_LTO=${CI_NO_LTO:-1}
+
+LLVM_PARALLEL_LINK_JOBS=1
 START_TIME=$(date +%s)
 
-# --- pretty logs ---
+# -------------------------
+# Pretty logging
+# -------------------------
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
@@ -27,6 +33,9 @@ info(){ echo -e "${GREEN}[INFO]${NC} $*"; }
 warn(){ echo -e "${YELLOW}[WARN]${NC} $*"; }
 err(){  echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
+# -------------------------
+# Setup Clang
+# -------------------------
 setup_clang() {
   info "Checking for Clang ($CLANG_VERSION)..."
 
@@ -35,7 +44,6 @@ setup_clang() {
     mkdir -p "$CLANG_DIR"
 
     TARBALL="$(mktemp)"
-
     URL_BASE="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive"
     PRIMARY_URL="$URL_BASE/refs/heads/main/${CLANG_VERSION}.tar.gz"
     ALT_URL="$URL_BASE/mirror-goog-main-llvm-toolchain-source/${CLANG_VERSION}.tar.gz"
@@ -51,7 +59,7 @@ setup_clang() {
     fi
 
     if ! "${DOWN_PRIMARY[@]}"; then
-      warn "Primary URL failed, trying mirror path..."
+      warn "Primary URL failed, trying mirror..."
       "${DOWN_ALT[@]}" || err "Download failed from both URLs."
     fi
 
@@ -61,26 +69,48 @@ setup_clang() {
   fi
 
   export PATH="/usr/lib/ccache:$CLANG_DIR/bin:$PATH"
-
+  export BUILD_CC="$CLANG_BINARY"
   ver="$("$CLANG_BINARY" --version | head -n1)"
   ver="$(echo "$ver" | sed -E 's/\(http[^)]*\)//g; s/[[:space:]]+/ /g; s/[[:space:]]+$//')"
-
   export KBUILD_COMPILER_STRING="$ver"
 }
 
-setup_kernelsu() {
-  info "Setting up KernelSU Next..."
+# -------------------------
+# Setup GCC cross compiler
+# -------------------------
+setup_cross() {
+  CROSS_DIR="$HOME/toolchains/gcc"
+  CROSS_BIN="$CROSS_DIR/aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-"
 
-  curl -LSs \
-    "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" \
-    | bash -
+  if [ ! -x "${CROSS_BIN}gcc" ]; then
+    info "Fetching ARM64 GCC cross-compiler..."
+    mkdir -p "$CROSS_DIR"
+    curl -LO "https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
+    tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz -C "$CROSS_DIR" --strip-components=1
+    rm arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
+  fi
+
+  export CROSS_COMPILE="$CROSS_BIN"
+  export CLANG_TRIPLE=aarch64-linux-gnu-
 }
 
+# -------------------------
+# Setup KernelSU Next
+# -------------------------
+setup_kernelsu() {
+  info "Setting up KernelSU Next..."
+  git clone --depth=1 --branch "$KSU_BRANCH" "$KSU_REPO" "$KSU_DIR" || true
+  curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+}
 
+# -------------------------
+# Kernel build
+# -------------------------
 build_kernel() {
   info "Starting kernel build..."
 
   setup_clang
+  setup_cross
   setup_kernelsu
 
   mkdir -p "$OUT_DIR"
@@ -89,25 +119,32 @@ build_kernel() {
   make -j"$JOBS" \
        O="$OUT_DIR" \
        ARCH=arm64 \
-       CC=clang \
+       CC="$BUILD_CC" \
+       CROSS_COMPILE="$CROSS_COMPILE" \
        LD=ld.lld \
        LLVM=1 \
        LLVM_IAS=1 \
-       "$KERNEL_DEFCONFIG" \
-       || err "defconfig failed"
+       "$KERNEL_DEFCONFIG" || err "defconfig failed"
+
+  # Disable LTO for CI if requested
+  if [ "$CI_NO_LTO" = "1" ]; then
+    info "Disabling LTO for CI to prevent OOM..."
+    sed -i -E 's/^CONFIG_LTO_[A-Z0-9_]+=.*/# \0 is not set/' "$OUT_DIR/.config" || true
+    echo "CONFIG_LTO_NONE=y" >> "$OUT_DIR/.config"
+    make -j"$JOBS" O="$OUT_DIR" ARCH=arm64 olddefconfig
+  fi
 
   info "Building kernel..."
   make -j"$JOBS" \
        O="$OUT_DIR" \
        ARCH=arm64 \
-       CC=clang \
+       CC="$BUILD_CC" \
+       CROSS_COMPILE="$CROSS_COMPILE" \
        LD=ld.lld \
        LLVM=1 \
-       LLVM_IAS=1 \
-       || err "build failed"
+       LLVM_IAS=1 || err "build failed"
 
   total=$(( $(date +%s) - START_TIME ))
-
   info "Build finished in $((total/60))m $((total%60))s."
 }
 
