@@ -28,6 +28,14 @@ jobs:
 
       - name: Checkout kernel
         uses: actions/checkout@v4
+      - name: Add swap (important for LTO)
+        run: |
+          sudo swapoff -a || true
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
 
       - name: Install dependencies
         run: |
