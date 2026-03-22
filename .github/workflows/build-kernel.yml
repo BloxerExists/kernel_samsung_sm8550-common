@@ -15,7 +15,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-
+    strategy:
+      fail-fast: false
     permissions:
       contents: write
 
@@ -25,16 +26,26 @@ jobs:
       CCACHE_DIR: /home/runner/.cache/ccache
 
     steps:
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+            tool-cache: true
+            android: true
+            dotnet: true
+            haskell: true
+            large-packages: true
+            swap-storage: false  
 
       - name: Checkout kernel
         uses: actions/checkout@v4
-      - name: Add swap (important for LTO)
+        
+      - name: Create Swap File
         run: |
-          sudo swapoff -a || true
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          sudo dd if=/dev/zero of=/mnt/swapfile bs=1G count=12
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          echo "Memory status after swap:"
           free -h
 
       - name: Install dependencies
