@@ -80,14 +80,17 @@ setup_clang() {
 # -------------------------
 setup_cross() {
   CROSS_DIR="$HOME/toolchains/gcc"
-  CROSS_BIN="$CROSS_DIR/aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-"
+  ARCH_GCC_DIR="$CROSS_DIR/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu"
+  CROSS_BIN="$ARCH_GCC_DIR/bin/aarch64-none-linux-gnu-"
 
   if [ ! -x "${CROSS_BIN}gcc" ]; then
     info "Fetching ARM64 GCC cross-compiler..."
     mkdir -p "$CROSS_DIR"
+    cd "$CROSS_DIR"
     curl -LO "https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
-    tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz -C "$CROSS_DIR" --strip-components=1
+    tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
     rm arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
+    cd -
   fi
 
   export CROSS_COMPILE="$CROSS_BIN"
