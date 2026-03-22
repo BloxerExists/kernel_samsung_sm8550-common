@@ -2,6 +2,8 @@
 set -euo pipefail
 
 # (env-overridable)
+JOBS=${JOBS:-2}
+export LLVM_PARALLEL_LINK_JOBS=1
 KERNEL_DEFCONFIG=${KERNEL_DEFCONFIG:-gki_defconfig}
 CLANG_VERSION=${CLANG_VERSION:-clang-r584948}
 OUT_DIR=${OUT_DIR:-out}
@@ -84,7 +86,7 @@ build_kernel() {
   mkdir -p "$OUT_DIR"
 
   info "Running defconfig..."
-  make -j"$(nproc --all)" \
+  make -j"$JOBS" \
        O="$OUT_DIR" \
        ARCH=arm64 \
        CC=clang \
@@ -95,7 +97,7 @@ build_kernel() {
        || err "defconfig failed"
 
   info "Building kernel..."
-  make -j"$(nproc --all)" \
+  make -j"$JOBS" \
        O="$OUT_DIR" \
        ARCH=arm64 \
        CC=clang \
