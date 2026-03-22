@@ -25,6 +25,7 @@ jobs:
       CCACHE_DIR: /home/runner/.cache/ccache
 
     steps:
+
       - name: Checkout kernel
         uses: actions/checkout@v4
 
@@ -36,19 +37,18 @@ jobs:
             libssl-dev libelf-dev python3 rsync unzip zip cpio \
             device-tree-compiler ccache
 
-      - name: Enable ccache wrappers
-        run: |
-          sudo mkdir -p /usr/lib/ccache
-          for bin in clang clang++; do
-            sudo ln -sf "$(command -v ccache)" "/usr/lib/ccache/$bin"
-          done
-          echo "/usr/lib/ccache" >> "$GITHUB_PATH"
+      # -------------------------
+      # CCACHE SETUP
+      # -------------------------
 
-      - name: Cache clang toolchain
-        uses: actions/cache@v4
-        with:
-          path: /home/runner/tools/google-clang
-          key: ${{ runner.os }}-clang-${{ env.CLANG_VERSION }}
+      - name: Setup ccache
+        run: |
+          mkdir -p "$CCACHE_DIR"
+
+          echo "max_size = 10.0G" > "$CCACHE_DIR/ccache.conf"
+
+          echo "CCACHE_DIR=$CCACHE_DIR" >> "$GITHUB_ENV"
+          echo "CCACHE_COMPRESS=true" >> "$GITHUB_ENV"
 
       - name: Cache ccache
         uses: actions/cache@v4
@@ -59,9 +59,27 @@ jobs:
             ${{ runner.os }}-ccache-${{ env.CLANG_VERSION }}-
             ${{ runner.os }}-ccache-
 
+      # -------------------------
+      # CLANG CACHE
+      # -------------------------
+
+      - name: Cache clang toolchain
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/tools/google-clang
+          key: ${{ runner.os }}-clang-${{ env.CLANG_VERSION }}
+
+      # -------------------------
+      # ANYKERNEL3
+      # -------------------------
+
       - name: Clone AnyKernel3
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
+
+      # -------------------------
+      # BUILD
+      # -------------------------
 
       - name: Make build script executable
         run: chmod +x scripts/build.sh
@@ -69,6 +87,10 @@ jobs:
       - name: Build kernel
         run: |
           scripts/build.sh
+
+      # -------------------------
+      # COLLECT OUTPUT
+      # -------------------------
 
       - name: Collect kernel outputs
         run: |
@@ -78,21 +100,47 @@ jobs:
           cp out/arch/arm64/boot/dtb* release/ 2>/dev/null || true
           cp out/arch/arm64/boot/dtbo.img release/ 2>/dev/null || true
 
+          ls -lah release
+
+      # -------------------------
+      # PACKAGE ZIP
+      # -------------------------
+
       - name: Package AnyKernel3 zip
         run: |
           cp -r release/* AnyKernel3/ 2>/dev/null || true
+
           ZIP_NAME="Kernel-dm1q-$(date -u +'%Y%m%d-%H%M').zip"
-          (cd AnyKernel3 && zip -r9 "../$ZIP_NAME" . -x "*.git*" -x ".github/*")
+
+          (
+            cd AnyKernel3
+            zip -r9 "../$ZIP_NAME" . \
+              -x "*.git*" \
+              -x ".github/*"
+          )
+
           echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
+
+      # -------------------------
+      # METADATA DETECTION
+      # -------------------------
 
       - name: Gather build metadata
         id: meta
         run: |
-          KERNEL_VERSION="$(cat out/include/config/kernel.release 2>/dev/null || echo unknown)"
-          KSU_VERSION="unknown"
 
-          if [ -d KernelSU-Next/.git ]; then
-            KSU_VERSION="$(git -C KernelSU-Next rev-parse --short HEAD)"
+          # Kernel Version
+          if [ -f out/include/config/kernel.release ]; then
+            KERNEL_VERSION="$(cat out/include/config/kernel.release)"
+          else
+            KERNEL_VERSION="unknown"
+          fi
+
+          # KernelSU Version (NEW METHOD)
+          if [ -d KernelSU/.git ]; then
+            KSU_VERSION="$(git -C KernelSU rev-parse --short HEAD)"
+          else
+            KSU_VERSION="unknown"
           fi
 
           BUILD_DATE="$(date -u +'%Y-%m-%d %H:%M UTC')"
@@ -103,6 +151,10 @@ jobs:
             echo "build_date=$BUILD_DATE"
           } >> "$GITHUB_OUTPUT"
 
+      # -------------------------
+      # RELEASE NOTES
+      # -------------------------
+
       - name: Generate release notes
         run: |
           cat > release_notes.md <<EOF
@@ -111,6 +163,10 @@ jobs:
           Build Date: ${{ steps.meta.outputs.build_date }}
           Credits: edgars-cirulis
           EOF
+
+      # -------------------------
+      # RELEASE
+      # -------------------------
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
