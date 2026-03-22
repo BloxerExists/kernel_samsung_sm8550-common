@@ -1,4 +1,4 @@
-name: Build Samsung dm1q Kernel
+name: Build Kernel
 
 on:
   workflow_dispatch:
