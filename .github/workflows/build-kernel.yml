@@ -92,10 +92,19 @@ jobs:
       # ANYKERNEL3
       # -------------------------
 
-      - name: Clone AnyKernel3
+      - name: Clone and configure AnyKernel3
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
-
+      
+          cd AnyKernel3
+      
+          # Set correct device names
+          sed -i 's/device.name1=.*/device.name1=dm1q/' anykernel.sh
+      
+          # Optional: nicer kernel name
+          sed -i 's/kernel.string=.*/kernel.string=custom common kernel/' anykernel.sh
+      
+          cd ..
       # -------------------------
       # BUILD
       # -------------------------
@@ -156,10 +165,11 @@ jobs:
           fi
       
           # KernelSU Version 
-          if [ -f KernelSU/kernel/version ]; then
-            KSU_VERSION="$(cat KernelSU/kernel/version)"
+          if [ -f build/ksu_version.txt ]; then
+            KSU_VERSION=$(cat build/ksu_version.txt)
+            echo "ksu_version=${KSU_VERSION}" >> $GITHUB_OUTPUT
           else
-            KSU_VERSION="unknown"
+            echo "ksu_version=unknown" >> $GITHUB_OUTPUT
           fi
       
           BUILD_DATE="$(date -u +'%Y-%m-%d %H:%M UTC')"
