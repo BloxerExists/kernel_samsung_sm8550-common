@@ -28,6 +28,7 @@ jobs:
       CLANG_VERSION: clang-r584948
       CLANG_DIR: /home/runner/tools/google-clang
       CCACHE_DIR: /home/runner/.cache/ccache
+      KSU_REF: ${{ github.event.inputs.ksu_ref }}
 
     steps:
       - name: Free Disk Space (Ubuntu)
