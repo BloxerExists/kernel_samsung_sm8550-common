@@ -86,11 +86,11 @@ setup_cross() {
   if [ ! -x "${CROSS_BIN}gcc" ]; then
     info "Fetching ARM64 GCC cross-compiler..."
     mkdir -p "$CROSS_DIR"
-    cd "$CROSS_DIR"
-    curl -LO "https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
+    pushd "$CROSS_DIR" >/dev/null
+    curl -fLO "https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
     tar -xf arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
-    rm arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
-    cd -
+    rm -f arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
+    popd >/dev/null
   fi
 
   export CROSS_COMPILE="$CROSS_BIN"
@@ -102,8 +102,9 @@ setup_cross() {
 # -------------------------
 setup_kernelsu() {
   info "Setting up KernelSU Next..."
-  git clone --depth=1 --branch "$KSU_BRANCH" "$KSU_REPO" "$KSU_DIR" || true
-  curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+  # Run from kernel source root
+  curl -fLSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" \
+    | bash -s "${KSU_BRANCH}"
 }
 
 # -------------------------
