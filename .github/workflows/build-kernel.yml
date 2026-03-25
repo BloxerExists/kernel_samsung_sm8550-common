@@ -135,11 +135,8 @@ jobs:
       - name: Collect kernel outputs
         run: |
           mkdir -p release
-
-          cp out/arch/arm64/boot/Image* release/ 2>/dev/null || true
-          cp out/arch/arm64/boot/dtb* release/ 2>/dev/null || true
-          cp out/arch/arm64/boot/dtbo.img release/ 2>/dev/null || true
-
+      
+          cp out/arch/arm64/boot/Image release/Image 2>/dev/null || true
           ls -lah release
 
       # -------------------------
@@ -148,17 +145,17 @@ jobs:
 
       - name: Package AnyKernel3 zip
         run: |
-          cp -r release/* AnyKernel3/ 2>/dev/null || true
-
+          cp release/Image AnyKernel3/Image
+      
           ZIP_NAME="Kernel-dm1q-$(date -u +'%Y%m%d-%H%M').zip"
-
+      
           (
             cd AnyKernel3
             zip -r9 "../$ZIP_NAME" . \
               -x "*.git*" \
               -x ".github/*"
           )
-
+      
           echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
 
       # -------------------------
