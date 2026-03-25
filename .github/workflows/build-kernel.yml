@@ -147,15 +147,23 @@ jobs:
       - name: Gather build metadata
         id: meta
         run: |
+      
+          # Kernel Version
           if [ -f out/include/config/kernel.release ]; then
             KERNEL_VERSION="$(cat out/include/config/kernel.release)"
           else
             KERNEL_VERSION="unknown"
           fi
-
-          KSU_VERSION="${KSU_BRANCH:-stable}"
+      
+          # KernelSU Version 
+          if [ -f KernelSU/kernel/version ]; then
+            KSU_VERSION="$(cat KernelSU/kernel/version)"
+          else
+            KSU_VERSION="unknown"
+          fi
+      
           BUILD_DATE="$(date -u +'%Y-%m-%d %H:%M UTC')"
-
+      
           {
             echo "kernel_version=$KERNEL_VERSION"
             echo "ksu_version=$KSU_VERSION"
@@ -172,7 +180,7 @@ jobs:
           Kernel Version: ${{ steps.meta.outputs.kernel_version }}
           KSU Next Version: ${{ steps.meta.outputs.ksu_version }}
           Build Date: ${{ steps.meta.outputs.build_date }}
-          Credits: edgars-cirulis
+          Credits: @edgars-cirulis
           EOF
 
       # -------------------------
