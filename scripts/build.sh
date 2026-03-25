@@ -101,10 +101,10 @@ setup_cross() {
 # Setup KernelSU Next
 # -------------------------
 setup_kernelsu() {
-  info "Setting up KernelSU Next..."
-  # Run from kernel source root
-  curl -fLSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" \
-    | bash -s "${KSU_BRANCH}"
+  info "Setting up KernelSU Next ($KSU_REF)..."
+  curl -fLSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s "$KSU_REF"
+  mkdir -p "$OUT_DIR"
+  printf '%s\n' "${KSU_REF#v}" > "$OUT_DIR/ksu_version.txt"
 }
 
 # -------------------------
