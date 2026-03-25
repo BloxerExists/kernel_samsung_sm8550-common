@@ -101,9 +101,8 @@ jobs:
           # Set correct device names
           sed -i 's/device.name1=.*/device.name1=dm1q/' anykernel.sh
 
-
-          # Set modern boot partition
-          sed -i 's|block=.*|block=/dev/block/by-name/boot|' anykernel.sh
+          sed -i 's|^BLOCK=.*|BLOCK=auto|' anykernel.sh
+          sed -i 's/^IS_SLOT_DEVICE=.*/IS_SLOT_DEVICE=1/' anykernel.sh
 
           
           # Optional: nicer kernel name
@@ -173,7 +172,7 @@ jobs:
           if [ -f build/ksu_version.txt ]; then
             KSU_VERSION="$(cat build/ksu_version.txt)"
           else
-            KSU_VERSION="unkown"
+            KSU_VERSION="latest"
           fi
       
           BUILD_DATE="$(date -u +'%Y-%m-%d %H:%M UTC')"
