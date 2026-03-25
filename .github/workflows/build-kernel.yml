@@ -11,6 +11,10 @@ on:
         options:
           - release
           - prerelease
+      ksu_ref:
+        description: "KernelSU Next tag/branch"
+        required: true
+        default: "v3.1.0"
 
 jobs:
   build:
@@ -100,9 +104,12 @@ jobs:
       
           # Set correct device names
           sed -i 's/device.name1=.*/device.name1=dm1q/' anykernel.sh
+          sed -i 's/device.name2=.*/device.name2=/' anykernel.sh
+          sed -i 's/device.name3=.*/device.name3=/' anykernel.sh
+          sed -i 's/device.name4=.*/device.name4=/' anykernel.sh
 
           sed -i 's|^BLOCK=.*|BLOCK=auto|' anykernel.sh
-          sed -i 's/^IS_SLOT_DEVICE=.*/IS_SLOT_DEVICE=1/' anykernel.sh
+          sed -i 's|^IS_SLOT_DEVICE=.*|IS_SLOT_DEVICE=auto|' anykernel.sh
 
           
           # Optional: nicer kernel name
@@ -160,19 +167,16 @@ jobs:
       - name: Gather build metadata
         id: meta
         run: |
-      
-          # Kernel Version
           if [ -f out/include/config/kernel.release ]; then
             KERNEL_VERSION="$(cat out/include/config/kernel.release)"
           else
             KERNEL_VERSION="unknown"
           fi
       
-          # KernelSU Version 
-          if [ -f build/ksu_version.txt ]; then
-            KSU_VERSION="$(cat build/ksu_version.txt)"
+          if [ -f out/ksu_version.txt ]; then
+            KSU_VERSION="$(cat out/ksu_version.txt)"
           else
-            KSU_VERSION="latest"
+            KSU_VERSION="unknown"
           fi
       
           BUILD_DATE="$(date -u +'%Y-%m-%d %H:%M UTC')"
