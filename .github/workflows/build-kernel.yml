@@ -108,8 +108,8 @@ jobs:
           sed -i 's/device.name2=.*/device.name2=/' anykernel.sh
           sed -i 's/device.name3=.*/device.name3=/' anykernel.sh
           sed -i 's/device.name4=.*/device.name4=/' anykernel.sh
-
-          sed -i 's|^BLOCK=.*|BLOCK=auto|' anykernel.sh
+          
+          sed -i 's|^BLOCK=.*|BLOCK=/dev/block/by-name/boot|' anykernel.sh
           sed -i 's|^IS_SLOT_DEVICE=.*|IS_SLOT_DEVICE=auto|' anykernel.sh
 
           
