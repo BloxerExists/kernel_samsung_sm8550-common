@@ -54,7 +54,7 @@ jobs:
           sudo apt install -y \
             git bc bison build-essential curl flex \
             libssl-dev libelf-dev python3 rsync unzip zip cpio \
-            device-tree-compiler ccache
+            device-tree-compiler ccache dwarves
 
       # -------------------------
       # CCACHE SETUP
