@@ -100,7 +100,12 @@ jobs:
       
           # Set correct device names
           sed -i 's/device.name1=.*/device.name1=dm1q/' anykernel.sh
-      
+
+
+          # Set modern boot partition
+          sed -i 's|block=.*|block=/dev/block/by-name/boot|' anykernel.sh
+
+          
           # Optional: nicer kernel name
           sed -i 's/kernel.string=.*/kernel.string=custom common kernel/' anykernel.sh
       
@@ -166,10 +171,9 @@ jobs:
       
           # KernelSU Version 
           if [ -f build/ksu_version.txt ]; then
-            KSU_VERSION=$(cat build/ksu_version.txt)
-            echo "ksu_version=${KSU_VERSION}" >> $GITHUB_OUTPUT
+            KSU_VERSION="$(cat build/ksu_version.txt)"
           else
-            echo "ksu_version=unknown" >> $GITHUB_OUTPUT
+            KSU_VERSION="unkown"
           fi
       
           BUILD_DATE="$(date -u +'%Y-%m-%d %H:%M UTC')"
