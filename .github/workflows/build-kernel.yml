@@ -147,21 +147,13 @@ jobs:
       - name: Gather build metadata
         id: meta
         run: |
-
-          # Kernel Version
           if [ -f out/include/config/kernel.release ]; then
             KERNEL_VERSION="$(cat out/include/config/kernel.release)"
           else
             KERNEL_VERSION="unknown"
           fi
 
-          # KernelSU Version (NEW METHOD)
-          if [ -d KernelSU/.git ]; then
-            KSU_VERSION="$(git -C KernelSU rev-parse --short HEAD)"
-          else
-            KSU_VERSION="unknown"
-          fi
-
+          KSU_VERSION="${KSU_BRANCH:-stable}"
           BUILD_DATE="$(date -u +'%Y-%m-%d %H:%M UTC')"
 
           {
