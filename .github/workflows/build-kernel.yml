@@ -111,7 +111,11 @@ jobs:
           
           sed -i 's|^BLOCK=.*|BLOCK=/dev/block/by-name/boot|' anykernel.sh
           sed -i 's|^IS_SLOT_DEVICE=.*|IS_SLOT_DEVICE=auto|' anykernel.sh
-          sed -i 's|^NO_RAMDISK=.*|NO_RAMDISK=1|' anykernel.sh
+          sed -i '/# boot install/,/## end boot install/c\
+          # boot install\
+          split_boot; # skip ramdisk unpack\
+          flash_boot; # skip ramdisk repack\
+          ## end boot install' anykernel.sh
 
           
           # Optional: nicer kernel name
