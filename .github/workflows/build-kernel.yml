@@ -97,31 +97,54 @@ jobs:
       # ANYKERNEL3
       # -------------------------
 
-      - name: Clone and configure AnyKernel3
-        run: |
-          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
-      
-          cd AnyKernel3
-      
-          # Set correct device names
-          sed -i 's/device.name1=.*/device.name1=dm1q/' anykernel.sh
-          sed -i 's/device.name2=.*/device.name2=/' anykernel.sh
-          sed -i 's/device.name3=.*/device.name3=/' anykernel.sh
-          sed -i 's/device.name4=.*/device.name4=/' anykernel.sh
-          
-          sed -i 's|^BLOCK=.*|BLOCK=/dev/block/by-name/boot|' anykernel.sh
-          sed -i 's|^IS_SLOT_DEVICE=.*|IS_SLOT_DEVICE=auto|' anykernel.sh
-          sed -i '/# boot install/,/## end boot install/c\
-          # boot install\
-          split_boot; # skip ramdisk unpack\
-          flash_boot; # skip ramdisk repack\
-          ## end boot install' anykernel.sh
+      - name: Clone AnyKernel3
+        run: git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
 
-          
-          # Optional: nicer kernel name
-          sed -i 's/kernel.string=.*/kernel.string=custom common kernel/' anykernel.sh
-      
-          cd ..
+      - name: Replace AnyKernel3 with known-good dm1q template
+        run: |
+            cat > AnyKernel3/anykernel.sh <<'EOF'
+            ### AnyKernel3 Ramdisk Mod Script
+            ## osm0sis @ xda-developers
+            
+            ### AnyKernel setup
+            # global properties
+            properties() { '
+            kernel.string=custom common kernel
+            kernel.compiler=Neutron Clang
+            kernel.made=@edgars-cirulis on xda-developers
+            message.word=
+            do.devicecheck=0
+            do.modules=0
+            do.systemless=1
+            do.cleanup=1
+            do.cleanuponabort=0
+            device.name1=dm1q
+            device.name2=
+            device.name3=
+            supported.versions=
+            supported.patchlevels=
+            supported.vendorpatchlevels=
+            '; } # end properties
+            
+            
+            ### AnyKernel install
+            ## boot files attributes
+            boot_attributes() {
+            set_perm_recursive 0 0 755 644 $ramdisk/*;
+            set_perm_recursive 0 0 750 750 $ramdisk/init* $ramdisk/sbin;
+            } # end attributes
+            
+            # boot shell variables
+            block=/dev/block/bootdevice/by-name/boot;
+            is_slot_device=0;
+            ramdisk_compression=auto;
+            patch_vbmeta_flag=auto;
+            . tools/ak3-core.sh;
+            split_boot;
+            
+            flash_boot;
+
+            EOF
       # -------------------------
       # BUILD
       # -------------------------
