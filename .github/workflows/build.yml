@@ -39,6 +39,29 @@ jobs:
           path: |
             build/*
           compression-level: 0
+
+      - name: Gather build metadata
+        id: meta
+        run: |
+          if [ -f out/include/config/kernel.release ]; then
+            KERNEL_VERSION="$(cat out/include/config/kernel.release)"
+          else
+            KERNEL_VERSION="unknown"
+          fi
+      
+          if [ -f out/ksu_version.txt ]; then
+            KSU_VERSION="$(cat out/ksu_version.txt)"
+          else
+            KSU_VERSION="unknown"
+          fi
+      
+          BUILD_DATE="$(date -u +'%Y-%m-%d %H:%M UTC')"
+      
+          {
+            echo "kernel_version=$KERNEL_VERSION"
+            echo "ksu_version=$KSU_VERSION"
+            echo "build_date=$BUILD_DATE"
+          } >> "$GITHUB_OUTPUT"
           
       - name: Publish
         id: release
@@ -54,4 +77,6 @@ jobs:
             WILL ONLY WORK ON ONEUI!!!! THIS IS NOT AOSP COMPATIBLE!!!! I AM NOT RESPONSIBLE FOR YOUR DEVICE NOT BOOTING/ BEING BRICKED, ANYTHING ELSE!
             
             - **KernelSU-Next included [KernelSU Next apk](https://github.com/KernelSU-Next/KernelSU-Next/releases)**
-            - **Run Number:** ${{ github.run_number }}
+            - **Kernel Version:** ${{ steps.meta.outputs.kernel_version }}
+            - **KSU Next Version:** ${{ steps.meta.outputs.ksu_version }}
+            - **Build Date:** ${{ steps.meta.outputs.build_date }}
