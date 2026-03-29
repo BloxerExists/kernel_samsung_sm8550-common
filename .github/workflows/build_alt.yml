@@ -21,7 +21,7 @@ jobs:
           swap-storage: false
       - name: Create Swap File
         run: |
-          sudo dd if=/dev/zero of=/mnt/swapfile bs=1G count=12
+          sudo dd if=/dev/zero of=/mnt/swapfile bs=1G count=18
           sudo chmod 600 /mnt/swapfile
           sudo mkswap /mnt/swapfile
           sudo swapon /mnt/swapfile
