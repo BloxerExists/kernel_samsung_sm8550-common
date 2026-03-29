@@ -40,6 +40,16 @@ jobs:
             build/*
           compression-level: 0
 
+      - name: Get Latest KSU Next Version
+        id: ksu_version
+        run: |
+          # Fetch latest release tag from GitHub API
+          KSU_VERSION=$(curl -s https://api.github.com/repos/KernelSU-Next/KernelSU-Next/releases/latest \
+                        | grep '"tag_name":' \
+                        | sed -E 's/.*"([^"]+)".*/\1/')
+          
+          echo "ksu_version=$KSU_VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Gather build metadata
         id: meta
         run: |
@@ -49,11 +59,8 @@ jobs:
             KERNEL_VERSION="unknown"
           fi
       
-          if [ -f out/ksu_version.txt ]; then
-            KSU_VERSION="$(cat out/ksu_version.txt)"
-          else
-            KSU_VERSION="unknown"
-          fi
+          # Use the KSU version from previous step
+          KSU_VERSION="${{ steps.ksu_version.outputs.ksu_version }}"
       
           BUILD_DATE="$(date -u +'%Y-%m-%d %H:%M UTC')"
       
