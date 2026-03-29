@@ -3,11 +3,6 @@ permissions:
   contents: write
 on:
   workflow_dispatch:
-    inputs:
-      build_branch:
-        description: Branch to build
-        required: true
-        default: android13-5.15-ksun_old
 
 jobs: 
   build_kernel:
@@ -34,6 +29,8 @@ jobs:
           free -h
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: android13-5.15-ksun_old
       - name: Build Kernel
         run: |
           source ./build.sh
