@@ -47,10 +47,10 @@ mkdir -p "${KERNEL_ROOT}/out" "${KERNEL_ROOT}/build" "${HOME}/toolchains"
 if [ ! -d "${HOME}/toolchains/clang-r584948" ]; then
     echo -e "\n[INFO] Cloning clang-r584948 Toolchain\n"
     mkdir -p "${HOME}/toolchains/clang-r584948" && cd "${HOME}/toolchains/clang-r584948"
-    curl -LO "https://gitlab.com/Neebe3289/android_prebuilts_clang_host_linux-x86/-/archive/clang-r584948/android_prebuilts_clang_host_linux-x86-clang-r584948.tar.gz?ref_type=heads"
-    tar -xf android_prebuilts_clang_host_linux-x86-clang-r584948.tar.gz && rm android_prebuilts_clang_host_linux-x86-clang-r584948.tar.gz
-    mv android_prebuilts_clang_host_linux-x86-clang-r584948 clang-r584948
-    mv clang-r450784e/* ${HOME}/toolchains/clang-r584948
+    curl -LO "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/mirror-goog-main-llvm-toolchain-source/clang-r584948.tar.gz"
+    tar -xf linux-x86-refs_heads_mirror-goog-main-llvm-toolchain-source-clang-r584948.tar.gz && rm linux-x86-refs_heads_mirror-goog-main-llvm-toolchain-source-clang-r584948.tar.gz
+    mv linux-x86-refs_heads_mirror-goog-main-llvm-toolchain-source-clang-r584948 clang-r584948
+    mv clang-r584948/* ${HOME}/toolchains/clang-r584948
     cd "${KERNEL_ROOT}"
 fi
 
@@ -65,18 +65,18 @@ fi
 
 # Export toolchain paths
 export PATH="${HOME}/toolchains/clang-r450784e/bin:${PATH}"
-export LD_LIBRARY_PATH="${HOME}/toolchains/clang-r450784e/lib64:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="${HOME}/toolchains/clang-r584948/lib64:${LD_LIBRARY_PATH}"
 
 # DEBUG: Check if clang exists and is executable
 echo "[DEBUG] Checking clang installation..."
-ls -la "${HOME}/toolchains/clang-r450784e/bin/" | head -20
+ls -la "${HOME}/toolchains/clang-r584948/bin/" | head -20
 echo "[DEBUG] clang binary:"
 which clang || echo "clang not found in PATH"
-file "${HOME}/toolchains/clang-r450784e/bin/clang" || echo "clang binary doesn't exist"
+file "${HOME}/toolchains/clang-r584948/bin/clang" || echo "clang binary doesn't exist"
 
 # Set cross-compile environment variables
 export BUILD_CROSS_COMPILE="${HOME}/toolchains/gcc/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-"
-export BUILD_CC="${HOME}/toolchains/clang-r450784e/bin/clang"
+export BUILD_CC="${HOME}/toolchains/clang-r584948/bin/clang"
 
 # Build options for the kernel
 export BUILD_OPTIONS=(
