@@ -65,7 +65,7 @@ if [ ! -d "${HOME}/toolchains/gcc" ]; then
 fi
 
 # Export toolchain paths
-export PATH="${HOME}/toolchains/clang-r450784e/bin:${PATH}"
+export PATH="${HOME}/toolchains/clang-r584948/bin:${PATH}"
 export LD_LIBRARY_PATH="${HOME}/toolchains/clang-r584948/lib64:${LD_LIBRARY_PATH}"
 
 # DEBUG: Check if clang exists and is executable
