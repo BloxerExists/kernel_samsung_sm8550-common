@@ -48,8 +48,8 @@ if [ ! -d "${HOME}/toolchains/clang-r584948" ]; then
     echo -e "\n[INFO] Cloning clang-r584948 Toolchain\n"
     mkdir -p "${HOME}/toolchains/clang-r584948" && cd "${HOME}/toolchains/clang-r584948"
     curl -LO "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/mirror-goog-main-llvm-toolchain-source/clang-r584948.tar.gz"
-    tar -xf linux-x86-refs_heads_mirror-goog-main-llvm-toolchain-source-clang-r584948.tar.gz && rm linux-x86-refs_heads_mirror-goog-main-llvm-toolchain-source-clang-r584948.tar.gz
-    mv linux-x86-refs_heads_mirror-goog-main-llvm-toolchain-source-clang-r584948 clang-r584948
+    mkdir clang-r584948
+    tar -xf linux-x86-refs_heads_mirror-goog-main-llvm-toolchain-source-clang-r584948.tar.gz - C clang-r584948 && rm linux-x86-refs_heads_mirror-goog-main-llvm-toolchain-source-clang-r584948.tar.gz
     mv clang-r584948/* ${HOME}/toolchains/clang-r584948
     cd "${KERNEL_ROOT}"
 fi
